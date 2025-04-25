@@ -92,7 +92,7 @@ Le but est de durcir la configuration d'un système, d'un serveur web, d'une bas
 | Modifier le préfixe des tables (`wp_`) | au moment de l’installation | Évite injections génériques |
 | Installer un plugin de sécurité | Wordfence | Fournit une couche de sécurité applicative : détection d’altérations de fichiers WordPress, protection contre les attaques par force brute, pare-feu applicatif, scans réguliers, blocage d’IP suspectes, et alertes en temps réel |
 | Forcer HTTPS dans `wp-config.php` et `functions.php` | Redirection et `is_ssl()` | Sécurise toutes les pages |
-| Définir les clés de sécurité (`AUTH_KEY`, etc.) | via [https://api.wordpress.org/secret-key](https://api.wordpress.org/secret-key) | Protège les sessions |
+| Définir les clés de sécurité `AUTH_KEY`, etc.) | salt via [https://api.wordpress.org/secret-key](https://api.wordpress.org/secret-key/1.1/salt/) | Protège les sessions |
 | Désactiver l’édition de fichiers via le backoffice | `DISALLOW_FILE_EDIT` | Empêche exploitation via admin |
 | Mettre à jour core, plugins, thèmes | Automatiquement via wp-config.php | Corrige les vulnérabilités |
 | Éviter les plugins obsolètes/non maintenus | Vérifier sur le repo WP officiel | Réduit le risque d'exploit |
