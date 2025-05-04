@@ -403,6 +403,11 @@ Cela protège le serveur web contre les attaques par upload de fichiers exécuta
   /dev/rl_vbox/tmp /tmp xfs defaults,nodev,noexec,nosuid 0 2
   ```
 
+**Vérification**
+
+![image](https://github.com/user-attachments/assets/b280399e-95db-44a4-a038-184b7276abea)
+
+
 **Justification** :
 
 * `/tmp` étant accessible par tous les utilisateurs, il est essentiel de restreindre toute exécution de fichiers.
@@ -430,7 +435,7 @@ Vérifie que :
 * `/etc/sudoers` → `440`
 * `/etc/ssh/sshd_config` → `600` ou `644`
 
-**Correction exemple** :
+**Exemple de correction** :
 
 ```bash
 sudo chmod 440 /etc/sudoers
@@ -451,10 +456,3 @@ sudo touch /etc/cron.deny
 ```
 
 **Justification** : Limite l’utilisation de `cron` uniquement à des utilisateurs autorisés.
-
----
-
-Souhaitez-vous que je formalise tout ça dans la suite de votre rapport Markdown maintenant, ou vous voulez d'abord appliquer tout cela sur votre machine ?
-
-
-
