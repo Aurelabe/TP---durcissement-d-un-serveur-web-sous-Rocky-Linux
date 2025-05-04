@@ -456,3 +456,274 @@ sudo touch /etc/cron.deny
 ```
 
 **Justification** : Limite l’utilisation de `cron` uniquement à des utilisateurs autorisés.
+
+
+### III. Sécurisation du Serveur Apache HTTP
+
+#### 1. **Installer Apache HTTP Server sur Rocky Linux**
+
+1. Mets à jour tes paquets :
+
+```bash
+sudo dnf update
+```
+
+2. Installe Apache (httpd) :
+
+```bash
+sudo dnf install httpd
+```
+
+3. Démarre Apache et active son démarrage automatique au boot :
+
+```bash
+sudo systemctl start httpd
+sudo systemctl enable httpd
+```
+
+4. Vérifie qu’Apache est bien installé et en cours d’exécution :
+
+```bash
+sudo systemctl status httpd
+```
+
+#### 2. **Appliquer les mesures de sécurisation d'Apache**
+
+Maintenant que Apache est installé, voici les mesures à appliquer :
+
+#### 1. **Désactiver la signature du serveur (`ServerSignature Off`, `ServerTokens Prod`)**
+
+La signature d'Apache permet à un attaquant d’obtenir des informations sur la version du serveur et ses modules. Pour renforcer la sécurité, on va désactiver cette signature.
+
+1. On ajoute/modifie les lignes suivantes dans `/etc/httpd/conf/httpd.conf` pour désactiver la signature du serveur :
+
+```apache
+ServerSignature Off
+ServerTokens Prod
+```
+
+3. Sauvegarde le fichier et redémarre Apache pour appliquer les changements :
+
+```bash
+sudo systemctl restart httpd
+```
+
+---
+
+#### 2. **Forcer HTTPS avec Let's Encrypt**
+
+Pour que toutes les connexions à ton serveur Apache passent par HTTPS, tu peux utiliser **Let's Encrypt** pour obtenir un certificat SSL gratuit.
+
+1. Installe **Certbot** et son plugin Apache :
+
+```bash
+sudo dnf install certbot python3-certbot-apache
+```
+
+2. Obtiens un certificat SSL pour ton domaine :
+
+```bash
+sudo certbot --apache
+```
+
+3. Suis les instructions pour entrer ton nom de domaine et configurer le SSL. Certbot va automatiquement configurer Apache pour rediriger les requêtes HTTP vers HTTPS.
+
+4. Vérifie que le certificat SSL est bien installé en accédant à ton serveur via `https://ton-domaine`.
+
+---
+
+#### 3. **Désactiver la liste des répertoires (`Options -Indexes`)**
+
+La liste des répertoires permet aux utilisateurs de voir les fichiers d’un répertoire s’il n’y a pas de fichier `index.html` ou équivalent. Pour des raisons de sécurité, il est préférable de désactiver cette fonctionnalité.
+
+1. Ouvre le fichier de configuration d'Apache (en général, `/etc/httpd/conf/httpd.conf` ou un fichier dans `/etc/httpd/conf.d/`).
+
+2. Ajoute ou modifie la ligne suivante :
+
+```apache
+Options -Indexes
+```
+
+3. Sauvegarde le fichier et redémarre Apache :
+
+```bash
+sudo systemctl restart httpd
+```
+
+---
+
+#### 4. **Empêcher l’exécution de scripts dans `/uploads`**
+
+Si ton serveur permet des uploads de fichiers, il est important de s'assurer qu'aucun script malveillant ne puisse être exécuté dans ces répertoires. Pour cela, on va utiliser un fichier `.htaccess` dans le répertoire `/uploads`.
+
+1. Crée un fichier `.htaccess` dans `/var/www/html/uploads` :
+
+```bash
+sudo nano /var/www/html/uploads/.htaccess
+```
+
+2. Ajoute la ligne suivante pour désactiver l'exécution des fichiers PHP (ou autres scripts) dans ce répertoire :
+
+```apache
+<Files *.php>
+    deny from all
+</Files>
+```
+
+3. Sauvegarde et ferme le fichier. Cela va empêcher l'exécution de tous les fichiers PHP dans le répertoire `/uploads`.
+
+---
+
+#### 5. **Utiliser ModSecurity + OWASP CRS**
+
+**ModSecurity** est un WAF (Web Application Firewall) qui protège ton serveur Apache contre des attaques comme les injections SQL, XSS, etc.
+
+1. Installe **ModSecurity** sur Rocky Linux :
+
+```bash
+sudo dnf install mod_security
+```
+
+2. Active ModSecurity en modifiant le fichier de configuration Apache :
+
+```bash
+sudo nano /etc/httpd/conf.d/mod_security.conf
+```
+
+3. Assure-toi que les lignes suivantes sont présentes et non commentées :
+
+```apache
+SecRuleEngine On
+SecRequestBodyAccess On
+```
+
+4. Installe les **OWASP Core Rule Set (CRS)** pour ModSecurity :
+
+```bash
+sudo dnf install mod_security_crs
+```
+
+5. Active le CRS en modifiant le fichier de configuration ModSecurity :
+
+```bash
+sudo nano /etc/httpd/conf.d/mod_security_crs.conf
+```
+
+Assure-toi que la ligne suivante est activée :
+
+```apache
+Include /usr/share/mod_security_crs/base_rules/*.conf
+```
+
+6. Sauvegarde et redémarre Apache pour appliquer les modifications :
+
+```bash
+sudo systemctl restart httpd
+```
+
+---
+
+#### 6. **Restreindre l'accès aux fichiers sensibles (`.htaccess` pour `.env`, `.git`)**
+
+Pour empêcher l'accès public à des fichiers sensibles (comme `.env`, `.git`), tu peux utiliser un fichier `.htaccess` pour restreindre leur accès.
+
+1. Crée ou édite un fichier `.htaccess` dans le répertoire racine de ton serveur web (`/var/www/html` ou `/var/www` selon ta configuration) :
+
+```bash
+sudo nano /var/www/html/.htaccess
+```
+
+2. Ajoute les lignes suivantes pour bloquer l'accès aux fichiers `.env` et `.git` :
+
+```apache
+<FilesMatch "^(\.env|\.git)">
+    Order Allow,Deny
+    Deny from all
+</FilesMatch>
+```
+
+3. Sauvegarde et ferme le fichier. Cela empêchera l'accès à ces fichiers sensibles.
+
+---
+
+#### 7. **Activer les headers de sécurité**
+
+Les headers HTTP de sécurité ajoutent une couche de protection contre certaines attaques côté navigateur.
+
+1. Installe le module `mod_headers` (s'il n'est pas déjà installé) :
+
+```bash
+sudo dnf install mod_headers
+```
+
+2. Ouvre le fichier de configuration d'Apache :
+
+```bash
+sudo nano /etc/httpd/conf/httpd.conf
+```
+
+3. Ajoute les lignes suivantes pour activer des headers de sécurité :
+
+```apache
+Header always set X-Frame-Options "SAMEORIGIN"
+Header always set X-XSS-Protection "1; mode=block"
+Header always set Content-Security-Policy "default-src 'self';"
+```
+
+4. Sauvegarde et redémarre Apache pour appliquer les changements :
+
+```bash
+sudo systemctl restart httpd
+```
+
+---
+
+#### 8. **Bloquer les méthodes HTTP inutiles**
+
+Il est conseillé de bloquer les méthodes HTTP non nécessaires pour réduire les vecteurs d'attaque. Les méthodes comme `DELETE` et `PUT` ne sont généralement pas nécessaires pour un serveur Web de base.
+
+1. Ouvre le fichier de configuration d'Apache :
+
+```bash
+sudo nano /etc/httpd/conf/httpd.conf
+```
+
+2. Ajoute ou modifie la ligne suivante pour restreindre les méthodes HTTP autorisées :
+
+```apache
+<LimitExcept GET POST>
+    Order Allow,Deny
+    Deny from all
+</LimitExcept>
+```
+
+3. Sauvegarde et redémarre Apache pour appliquer les changements :
+
+```bash
+sudo systemctl restart httpd
+```
+
+---
+
+#### 9. **Utiliser un compte utilisateur dédié pour Apache**
+
+Assure-toi que le serveur Apache fonctionne avec un utilisateur dédié, comme `apache` (ou `www-data` sur certaines distributions), et non avec l'utilisateur root.
+
+1. Vérifie l'utilisateur sous lequel Apache fonctionne dans le fichier de configuration :
+
+```bash
+sudo nano /etc/httpd/conf/httpd.conf
+```
+
+2. Cherche les directives `User` et `Group` et assure-toi qu’elles sont définies comme suit (par défaut sur Rocky Linux) :
+
+```apache
+User apache
+Group apache
+```
+
+3. Si ce n'est pas le cas, modifie-les et redémarre Apache :
+
+```bash
+sudo systemctl restart httpd
+```
