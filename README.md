@@ -330,3 +330,91 @@ sudo systemctl enable --now dnf-automatic.timer
 
 **Justification** : Réduit les fenêtres de vulnérabilité entre la publication d’un patch et son application.
 
+### 8. Isoler `/var/www` dans un volume logique séparé
+
+**Objectif** : Séparer les données web du reste du système avec des options de montage restrictives.
+
+**Actions** :
+
+```bash
+sudo mkfs.ext4 /dev/mapper/vg0-www
+sudo mkdir /var/www
+sudo mount -o nodev,noexec,nosuid /dev/mapper/vg0-www /var/www
+echo '/dev/mapper/vg0-www /var/www ext4 defaults,nodev,noexec,nosuid 0 2' | sudo tee -a /etc/fstab
+```
+
+**Justification** : Empêche un attaquant d’exécuter du code malveillant uploadé dans `/var/www`.
+
+---
+
+### 9. Isoler `/tmp` dans un volume séparé
+
+Même logique que pour `/var/www` :
+
+**Actions** :
+
+```bash
+sudo mkfs.ext4 /dev/mapper/vg0-tmp
+sudo mkdir /mnt/tmp
+sudo mount -o nodev,noexec,nosuid /dev/mapper/vg0-tmp /mnt/tmp
+sudo mv /tmp /tmp.bak
+sudo mkdir /tmp
+sudo mount --move /mnt/tmp /tmp
+sudo chmod 1777 /tmp
+echo '/dev/mapper/vg0-tmp /tmp ext4 defaults,nodev,noexec,nosuid 0 2' | sudo tee -a /etc/fstab
+```
+
+**Justification** : `/tmp` est une zone utilisée par tous les utilisateurs : des options restrictives y sont impératives.
+
+---
+
+### 10. Vérification des permissions critiques
+
+**Objectif** : Empêcher les fuites ou modifications non autorisées sur des fichiers système sensibles.
+
+**Commandes** :
+
+```bash
+stat /etc/passwd
+stat /etc/shadow
+stat /etc/group
+stat /etc/gshadow
+stat /etc/sudoers
+stat /etc/ssh/sshd_config
+```
+
+Vérifie que :
+
+* `/etc/shadow`, `/etc/gshadow` → `600` (lecture/écriture root uniquement)
+* `/etc/passwd`, `/etc/group` → `644`
+* `/etc/sudoers` → `440`
+* `/etc/ssh/sshd_config` → `600` ou `644`
+
+**Correction exemple** :
+
+```bash
+sudo chmod 440 /etc/sudoers
+sudo chown root:root /etc/sudoers
+```
+
+---
+
+### 11. Restreindre l’accès à `cron`
+
+**Objectif** : Éviter que des utilisateurs non autorisés planifient des tâches automatisées.
+
+**Actions** :
+
+```bash
+echo root | sudo tee /etc/cron.allow
+sudo touch /etc/cron.deny
+```
+
+**Justification** : Limite l’utilisation de `cron` uniquement à des utilisateurs autorisés.
+
+---
+
+Souhaitez-vous que je formalise tout ça dans la suite de votre rapport Markdown maintenant, ou vous voulez d'abord appliquer tout cela sur votre machine ?
+
+
+
