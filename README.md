@@ -682,3 +682,114 @@ Enfin, il est recommandé d'exécuter Apache sous un compte utilisateur spécifi
 
 * **Justification :**
   En exécutant Apache sous un utilisateur avec des droits limités, nous réduisons le risque d'élévation de privilèges en cas de vulnérabilité du serveur. Cette séparation des privilèges est une bonne pratique en matière de sécurité.
+
+
+Voici un rapport détaillé à partir de l'installation de MariaDB, comprenant toutes les étapes, commandes et justifications de chaque action entreprise pour sécuriser la base de données.
+
+---
+
+## IV **Hardening de la Base de données : MariaDB**
+
+MariaDB est un système de gestion de base de données relationnelle open-source utilisé dans de nombreux serveurs Web. Dans ce projet, **MariaDB** a été installé, puis plusieurs mesures de sécurité ont été mises en place pour assurer la protection des données et minimiser les risques de compromission. Cette partie décrit en détail les étapes de l'installation et les configurations de sécurité appliquées à MariaDB.
+
+### 1. **Installation de MariaDB**
+
+MariaDB a été installé sur le serveur pour gérer les bases de données nécessaires à l'application. L'installation a été effectuée en utilisant les dépôts standards de **Rocky Linux**. La commande suivante a été utilisée pour installer MariaDB :
+
+```bash
+sudo dnf install mariadb-server
+```
+
+Cette commande installe le serveur MariaDB et ses dépendances sur le système. Une fois l'installation terminée, le service MariaDB a été démarré et activé pour qu'il se lance au démarrage du serveur avec les commandes suivantes :
+
+```bash
+sudo systemctl start mariadb
+sudo systemctl enable mariadb
+```
+
+### 2. **Sécurisation de MariaDB**
+
+Après l'installation de MariaDB, il est essentiel de sécuriser la base de données pour prévenir les attaques potentielles. MariaDB fournit un script de sécurisation qui permet de mettre en place plusieurs configurations de sécurité de base en une seule commande. Le script `mysql_secure_installation` a été exécuté pour effectuer ces modifications :
+
+```bash
+sudo mysql_secure_installation
+```
+
+Les actions suivantes ont été appliquées durant l'exécution de ce script :
+
+* Définition du mot de passe pour l'utilisateur **`root`**.
+* Suppression des utilisateurs anonymes.
+* Désactivation de l'accès à **root** à distance.
+* Suppression de la base de données **test**.
+* Rechargement des privilèges.
+
+1. **Suppression des utilisateurs anonymes**
+
+Par défaut, MariaDB permet aux utilisateurs anonymes de se connecter à la base de données sans nom d'utilisateur ou mot de passe. Cela constitue une vulnérabilité potentielle. Afin de supprimer les utilisateurs anonymes et d’empêcher toute connexion non authentifiée, la commande suivante a été exécutée dans l'interface MariaDB :
+
+```sql
+DELETE FROM mysql.user WHERE User='';
+```
+
+Cette commande supprime tous les utilisateurs ayant un champ **`User`** vide, empêchant ainsi l'accès anonyme à la base de données.
+
+2. **Suppression de la base de données `test`**
+
+MariaDB crée automatiquement une base de données **`test`** lors de l'installation. Cette base est utilisée pour les tests, mais dans un environnement de production, elle est inutile et constitue un risque de sécurité potentiel. La commande suivante a été utilisée pour supprimer cette base :
+
+```sql
+DROP DATABASE test;
+```
+
+Cela empêche quiconque ait accès à la base **test** de l'utiliser à des fins malveillantes.
+
+3. **Restriction de l’accès root à `localhost`**
+
+Il est essentiel de restreindre l’accès à l’utilisateur **root** de MariaDB à partir du serveur local uniquement. Cela empêche un attaquant d’accéder à **root** depuis une machine distante. La configuration suivante a été modifiée dans le fichier **`/etc/my.cnf.d/server.cnf`** :
+
+```bash
+bind-address = 127.0.0.1
+```
+
+Cela configure MariaDB pour n'accepter les connexions à l'utilisateur **`root`** que depuis le **localhost**, renforçant ainsi la sécurité du serveur.
+
+4. **Création d’un utilisateur WordPress avec des privilèges limités**
+
+Dans le cadre de la mise en place de WordPress, il est important de créer un utilisateur dédié avec des privilèges minimaux. Cela empêche une éventuelle compromission de l'utilisateur **root** ou d'autres comptes à privilèges élevés. L'utilisateur **wp\_user** a été créé pour avoir uniquement des privilèges **SELECT**, **INSERT**, **UPDATE**, et **DELETE** sur la base de données utilisée par WordPress. La commande SQL suivante a été utilisée pour créer cet utilisateur et attribuer ces privilèges :
+
+```sql
+GRANT SELECT, INSERT, UPDATE, DELETE ON wordpress_db.* TO 'wp_user'@'localhost' IDENTIFIED BY 'strongpassword';
+```
+
+Cela suit le principe du **moindre privilège**, qui consiste à donner à chaque utilisateur uniquement les droits nécessaires pour accomplir ses tâches.
+
+5. **Audit des permissions des utilisateurs**
+
+Afin de garantir que les utilisateurs n’ont pas plus de privilèges que nécessaires, un audit régulier des permissions a été effectué. En particulier, l’utilisation de **`GRANT ALL`** a été évitée. Au lieu de cela, les privilèges ont été définis de manière granulaire, permettant ainsi un contrôle précis sur ce que chaque utilisateur peut ou ne peut pas faire.
+
+6. **Sauvegardes régulières des données**
+
+Les sauvegardes régulières sont essentielles pour protéger les données contre la perte ou la corruption. Un script cron a été configuré pour exécuter **`mysqldump`** à intervalles réguliers afin de créer des sauvegardes de la base de données WordPress. Le fichier **`/etc/cron.d/backup`** a été configuré pour effectuer cette tâche de manière automatique :
+
+```bash
+0 2 * * * root /usr/bin/mysqldump -u wp_user -p'strongpassword' wordpress_db > /backup/wordpress_db_$(date +\%F).sql
+```
+
+Ce script génère une sauvegarde de la base de données tous les jours à 2h00 du matin et la stocke dans le répertoire **/backup**.
+
+7. **Journalisation des requêtes lentes**
+
+La journalisation des requêtes lentes est un moyen d’identifier des comportements suspects ou des requêtes qui pourraient affecter la performance du serveur. Cette fonctionnalité a été activée dans MariaDB en modifiant le fichier de configuration **`my.cnf`** pour inclure la directive suivante :
+
+```bash
+slow_query_log = 1
+```
+
+Cela permet de détecter les requêtes SQL qui prennent plus de temps à s’exécuter que le seuil spécifié, ce qui peut signaler une tentative d'injection SQL ou d'autres comportements anormaux.
+
+8. **Utilisation de mots de passe forts et sécurisés**
+
+Pour garantir la sécurité des utilisateurs MariaDB, des mots de passe forts ont été utilisés pour l'utilisateur **root** et tous les autres utilisateurs. Les mots de passe sont stockés de manière sécurisée et ne sont jamais hardcodés dans les fichiers de configuration ou le code source. La génération de mots de passe complexes a été effectuée en utilisant un générateur de mots de passe sécurisé, tel que **`pwgen`**, pour générer des mots de passe aléatoires et robustes.
+
+Les mots de passe sont ensuite stockés de manière sécurisée dans le fichier **`/etc/my.cnf.d/my.cnf`**, et une politique de changement de mot de passe a été mise en place pour garantir que les mots de passe sont régulièrement mis à jour.
+
