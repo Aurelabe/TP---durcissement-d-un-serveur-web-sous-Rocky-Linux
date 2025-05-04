@@ -96,3 +96,166 @@ Le but est de durcir la configuration d'un système, d'un serveur web, d'une bas
 | Désactiver l’édition de fichiers via le backoffice | `DISALLOW_FILE_EDIT` | Empêche exploitation via admin |
 | Mettre à jour core, plugins, thèmes | Automatiquement via wp-config.php | Corrige les vulnérabilités |
 | Éviter les plugins obsolètes/non maintenus | Vérifier sur le repo WP officiel | Réduit le risque d'exploit |
+
+
+# II. Durcissement du système d’exploitation (Rocky Linux 9)
+
+## 1. Configuration réseau avec `nmcli`
+
+**Objectif** : Définir une adresse IP statique pour assurer une connectivité réseau stable et prévisible, essentielle pour un serveur.
+
+**Actions réalisées** :
+
+* **Modification de la configuration de l'interface** :
+  Supposons que l'interface concernée soit `enp0s8` :
+
+  ```bash
+  nmcli con mod enp0s8 ipv4.addresses 10.1.1.17/24
+  nmcli con mod enp0s8 ipv4.gateway 10.1.1.1
+  nmcli con mod enp0s8 ipv4.dns "8.8.8.8 8.8.4.4"
+  nmcli con mod enp0s8 ipv4.method manual
+  ```
+
+  Ces commandes définissent une adresse IP statique, une passerelle et des serveurs DNS pour l'interface.
+
+* **Redémarrage de la connexion pour appliquer les modifications** :
+
+  ```bash
+  nmcli con down enp0s8 && nmcli con up enp0s8
+  ```
+
+**Justification** : L'utilisation d'une adresse IP statique garantit que le serveur est toujours accessible à la même adresse, ce qui est crucial pour les services tels que les serveurs web ou les bases de données.
+
+## 2. Configuration de `firewalld`
+
+**Objectif** : Restreindre l'accès au serveur en n'autorisant que les ports nécessaires, réduisant ainsi la surface d'attaque.
+
+**Actions réalisées** :
+
+* **Création de la zone `restricted`** :
+
+  ```bash
+  sudo firewall-cmd --permanent --new-zone=restricted
+  ```
+
+  Cela crée une nouvelle zone avec des règles de sécurité personnalisées.
+
+* **Ajout des interfaces réseau à la zone `restricted`** :
+
+  ```bash
+  sudo firewall-cmd --permanent --zone=restricted --add-interface=enp0s3
+  sudo firewall-cmd --permanent --zone=restricted --add-interface=enp0s8
+  ```
+
+  ![Capture d'écran 2025-04-25 164318](https://github.com/user-attachments/assets/769379f9-eba7-4e02-9799-7aafc524ca67)
+
+
+  Ces commandes ajoutent les interfaces réseau `enp0s3` et `enp0s8` à la zone `restricted`.
+
+* **Suppression de tous les services de la zone `public`** :
+
+  ![Capture d'écran 2025-04-25 163735](https://github.com/user-attachments/assets/4827cca4-ded4-4dd6-85b9-93d8bc699d6a)
+  
+  Cela retire les services précédemment autorisés dans la zone `public`.
+
+* **Ouverture des ports nécessaires dans la zone `restricted`** :
+
+  ```bash
+  sudo firewall-cmd --permanent --zone=restricted --add-port=80/tcp
+  sudo firewall-cmd --permanent --zone=restricted --add-port=443/tcp
+  sudo firewall-cmd --permanent --zone=restricted --add-port=1025/tcp
+  ```
+
+  Cela autorise uniquement les ports 80 (HTTP), 443 (HTTPS) et 1025 (SSH personnalisé) dans la zone `restricted`.
+
+* **Application des modifications** :
+
+  ```bash
+  sudo firewall-cmd --reload
+  ```
+
+* **Vérification de la configuration actuelle** :
+
+  ```bash
+  sudo firewall-cmd --list-all
+  ```
+
+  ![Capture d'écran 2025-04-25 164007](https://github.com/user-attachments/assets/307118aa-0557-4075-87f3-6d234d4465d8)
+
+
+**Justification** : En supprimant tous les services non essentiels et en n'autorisant que les ports nécessaires dans une zone dédiée, on réduit considérablement les vecteurs d'attaque potentiels.
+
+## 3. Configuration de SSH et installation de `fail2ban`
+
+**Objectif** : Sécuriser l'accès SSH et prévenir les tentatives d'accès non autorisées.
+
+**Actions réalisées** :
+
+* **Modification de la configuration SSH** :
+
+  ```bash
+  sudo nano /etc/ssh/sshd_config
+  ```
+
+  Dans le fichier de configuration, les lignes suivantes ont été modifiées ou ajoutées :
+
+  ```bash
+  Port 1025
+  Protocol 2
+  PermitRootLogin no
+  PasswordAuthentication no
+  PubkeyAuthentication yes
+  PermitEmptyPasswords no
+  AllowUsers admin
+  ```
+
+  Ces paramètres désactivent l'accès root direct, l'authentification par mot de passe, et forcent l'utilisation de clés SSH.
+
+* **Redémarrage du service SSH pour appliquer les modifications** :
+
+  ```bash
+  sudo systemctl restart sshd
+  ```
+
+* **Installation de `fail2ban`** :
+
+  ```bash
+  sudo dnf install fail2ban
+  ```
+
+* **Activation et démarrage de `fail2ban`** :
+
+  ```bash
+  sudo systemctl enable --now fail2ban
+  sudo systemctl start --now fail2ban
+  ```
+
+* **Création d'une configuration personnalisée pour SSH** :
+
+  ```bash
+  sudo nano /etc/fail2ban/jail.d/sshd.local
+  ```
+
+  Contenu du fichier :
+
+  ```ini
+  [sshd]
+  enabled = true
+  port = 1025
+  filter = sshd
+  logpath = /var/log/secure
+  maxretry = 3
+  bantime = 1d
+  backend = systemd
+  ```
+
+  Cette configuration définit les paramètres spécifiques pour le service SSH, tels que le port personnalisé, le chemin du journal, le nombre maximal de tentatives avant bannissement, la durée du bannissement et le backend utilisé.
+
+* **Vérification du statut de `fail2ban`** :
+
+  ```bash
+  sudo systemctl status fail2ban
+  ```
+
+**Justification** : La désactivation de l'accès root et de l'authentification par mot de passe renforce la sécurité SSH. L'installation de `fail2ban` permet de bloquer les adresses IP effectuant des tentatives de connexion répétées, réduisant ainsi le risque d'attaques par force brute.
+
