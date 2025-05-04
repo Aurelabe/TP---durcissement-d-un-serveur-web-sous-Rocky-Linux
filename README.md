@@ -557,6 +557,8 @@ curl -k https://localhost
 
 Cela a permis d'obtenir la page de test par défaut d'Apache, maintenant accessible via HTTPS. Il est à noter que, comme mentionné précédemment, les navigateurs afficheront un avertissement indiquant que le certificat est auto-signé, ce qui est normal dans ce cas.
 
+![image](https://github.com/user-attachments/assets/271d25f6-46de-4f04-8b66-cbf0edece41e)
+
 
 #### 4. **Désactivation de l'Indexation des Répertoires**
 
@@ -565,19 +567,11 @@ La fonction d'indexation des répertoires d'Apache permet de lister les fichiers
 * **Configuration :**
   La directive `Options -Indexes` a été ajoutée dans le fichier de configuration Apache `/etc/httpd/conf/httpd.conf`. Cela désactive la possibilité de lister les fichiers dans les répertoires sans fichier index.
 
-* **Commandes appliquées :**
-  Dans le fichier de configuration d'Apache, nous avons ajouté la ligne suivante :
-
-  ```bash
-  Options -Indexes
-  ```
 
 * **Justification :**
   Cela empêche un attaquant de découvrir des fichiers sensibles dans des répertoires où un fichier d'index (comme `index.html`) est absent. Cette mesure limite la visibilité des fichiers non destinés à être accessibles publiquement.
 
----
-
-#### 4. **Empêcher l'Exécution de Scripts dans `/uploads`**
+#### 5. **Empêcher l'Exécution de Scripts dans `/uploads`**
 
 Les répertoires comme `/uploads` sont souvent utilisés pour stocker des fichiers téléchargés par les utilisateurs. Ces fichiers peuvent contenir des scripts malveillants pouvant être exécutés sur le serveur. Il est donc impératif de restreindre l'exécution de tout script dans ce répertoire.
 
@@ -615,8 +609,6 @@ Les répertoires comme `/uploads` sont souvent utilisés pour stocker des fichie
 * **Justification :**
   Ce module fournit une défense proactive contre de nombreuses vulnérabilités connues. L'activation de ModSecurity avec les règles OWASP CRS protège le serveur contre des attaques Web courantes et renforce ainsi la sécurité globale du serveur Apache.
 
----
-
 #### 6. **Restreindre l'Accès aux Fichiers Sensibles**
 
 Certaines informations sensibles, telles que les fichiers `.env` ou `.git`, ne doivent pas être accessibles par le biais du serveur web. Il est donc nécessaire de restreindre l'accès à ces fichiers pour éviter toute exposition.
@@ -636,8 +628,6 @@ Certaines informations sensibles, telles que les fichiers `.env` ou `.git`, ne d
 
 * **Justification :**
   En interdisant l'accès aux fichiers `.env` et `.git`, nous protégeons des informations sensibles qui pourraient autrement être exposées et utilisées à des fins malveillantes, telles que des clés API ou des configurations de base de données.
-
----
 
 #### 7. **Activation des Headers de Sécurité**
 
@@ -683,12 +673,7 @@ Certaines méthodes HTTP comme **PUT** et **DELETE** peuvent être utilisées à
 * **Justification :**
   Cette configuration permet de limiter les vecteurs d'attaque en interdisant l'utilisation de méthodes HTTP inutiles telles que **PUT** et **DELETE**, qui pourraient être utilisées par un attaquant pour modifier ou supprimer des ressources.
 
----
-
-#### 9. \*\*Utilisation d
-
-
-’un Compte Utilisateur Dédicacé `apache`\*\*
+#### 9. \*\*Utilisation d’un Compte Utilisateur Dédicacé `apache`\*\*
 
 Enfin, il est recommandé d'exécuter Apache sous un compte utilisateur spécifique, comme **apache**, pour limiter les droits d'accès et réduire la surface d'attaque.
 
@@ -697,9 +682,3 @@ Enfin, il est recommandé d'exécuter Apache sous un compte utilisateur spécifi
 
 * **Justification :**
   En exécutant Apache sous un utilisateur avec des droits limités, nous réduisons le risque d'élévation de privilèges en cas de vulnérabilité du serveur. Cette séparation des privilèges est une bonne pratique en matière de sécurité.
-
----
-
-### Conclusion
-
-Ces mesures de sécurisation d'Apache contribuent à réduire les risques d'attaques courantes et à assurer une meilleure protection des données sensibles hébergées sur le serveur. Chaque configuration a été soigneusement appliquée pour améliorer la sécurité du serveur tout en maintenant ses fonctionnalités de manière optimale.
