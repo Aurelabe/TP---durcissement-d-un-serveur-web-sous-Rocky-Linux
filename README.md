@@ -793,3 +793,117 @@ Pour garantir la sécurité des utilisateurs MariaDB, des mots de passe forts on
 
 Les mots de passe sont ensuite stockés de manière sécurisée dans le fichier **`/etc/my.cnf.d/my.cnf`**, et une politique de changement de mot de passe a été mise en place pour garantir que les mots de passe sont régulièrement mis à jour.
 
+
+## V. **WordPress (Application)**
+
+WordPress, étant une plateforme de gestion de contenu (CMS) extrêmement populaire, est une cible fréquente pour les cyberattaques. Par conséquent, plusieurs mesures de sécurité ont été mises en place pour réduire les risques de compromission. Ces mesures incluent la suppression de fichiers par défaut, la mise à jour régulière des composants, l'utilisation de plugins de sécurité, et des ajustements dans la configuration de WordPress pour renforcer sa sécurité.
+
+### 1. **Suppression de `readme.html` et `xmlrpc.php`**
+
+#### 1.1 **Suppression de `readme.html`**
+
+Le fichier **`readme.html`** contient des informations sur la version de WordPress utilisée, ce qui peut fournir aux attaquants des indices sur les vulnérabilités spécifiques à cette version. Il est donc essentiel de supprimer ce fichier pour réduire la surface d’attaque. La commande suivante permet de supprimer le fichier :
+
+```bash
+rm /var/www/html/readme.html
+```
+
+#### 1.2 **Désactivation de `xmlrpc.php`**
+
+Le fichier **`xmlrpc.php`** est un point d'entrée qui permet la communication avec WordPress via des protocoles tels que XML-RPC. Cependant, ce fichier est souvent ciblé pour des attaques par force brute ou des attaques par déni de service distribué (DDoS). Il peut être désactivé si ce n’est pas nécessaire. Pour ce faire, il existe plusieurs méthodes, mais l’une des plus simples consiste à ajouter les lignes suivantes dans le fichier **`.htaccess`** pour bloquer l'accès à ce fichier :
+
+```bash
+<Files xmlrpc.php>
+    Order Deny,Allow
+    Deny from all
+</Files>
+```
+
+### 2. **Modification du préfixe des tables WordPress**
+
+Lors de l'installation de WordPress, le préfixe des tables est par défaut **`wp_`**, ce qui le rend facilement identifiable pour un attaquant. En changeant ce préfixe, on rend les attaques par injection SQL plus difficiles. Lors de l'installation, il est recommandé de choisir un préfixe unique pour les tables de la base de données. Par exemple, on pourrait choisir **`wpxyz_`**.
+
+Si WordPress a déjà été installé, il est possible de modifier le préfixe des tables manuellement dans la base de données en exécutant la commande suivante dans MariaDB :
+
+```sql
+RENAME TABLE wp_posts TO wpxyz_posts, wp_comments TO wpxyz_comments, wp_users TO wpxyz_users;
+```
+
+Et cela doit être répété pour toutes les tables de la base de données.
+
+### 3. **Installation d'un plugin de sécurité : Wordfence**
+
+Pour ajouter une couche de sécurité applicative, le plugin **Wordfence** a été installé. Ce plugin fournit plusieurs fonctionnalités de sécurité essentielles, notamment :
+
+* **Détection d'altérations de fichiers WordPress** : surveille les fichiers système pour détecter toute modification non autorisée.
+* **Protection contre les attaques par force brute** : limite le nombre de tentatives de connexion échouées.
+* **Pare-feu applicatif** : protège contre les attaques web communes.
+* **Scan régulier** : analyse la sécurité du site sur une base régulière.
+* **Blocage d'IP suspectes** : empêche les attaquants de se connecter.
+* **Alertes en temps réel** : informe les administrateurs en cas de comportement suspect.
+
+L'installation du plugin a été réalisée via l'interface d'administration de WordPress sous l'onglet "Plugins" ou via WP-CLI avec la commande suivante :
+
+```bash
+wp plugin install wordfence --activate
+```
+
+### 4. **Forcer HTTPS dans `wp-config.php` et `functions.php`**
+
+Pour garantir que toutes les communications entre les utilisateurs et le site se font via un canal sécurisé, il est important de forcer la redirection de toutes les pages vers **HTTPS**. Cela a été fait en modifiant les fichiers **`wp-config.php`** et **`functions.php`** de WordPress.
+
+Dans **`wp-config.php`**, la ligne suivante a été ajoutée pour forcer la connexion sécurisée :
+
+```php
+define('FORCE_SSL_ADMIN', true);
+```
+
+De plus, dans le fichier **`functions.php`**, une redirection a été ajoutée pour s'assurer que toutes les pages du site utilisent HTTPS :
+
+```php
+if (!is_ssl() && $_SERVER['HTTP_HOST'] != 'localhost') {
+    wp_redirect('https://' . $_SERVER['HTTP_HOST'] . $_SERVER['REQUEST_URI']);
+    exit();
+}
+```
+
+Cela garantit que toutes les connexions sont chiffrées et sécurisées.
+
+### 5. **Définition des clés de sécurité (salts)**
+
+WordPress utilise des **salts** pour sécuriser les mots de passe des utilisateurs et les sessions. Ces clés de sécurité sont essentielles pour protéger les données sensibles stockées dans la base de données. Pour les définir, WordPress fournit une interface permettant de générer des clés de sécurité uniques via l'API officielle. Les clés ont été définies dans **`wp-config.php`** en utilisant les valeurs générées par [l'outil officiel de génération de clés](https://api.wordpress.org/secret-key/1.1/salt/).
+
+Voici à quoi cela ressemble dans **`wp-config.php`** :
+
+```php
+define('AUTH_KEY',         'gk!d4e$#z2g`ftwrqfuz$8xh8hzj@q-2dtq5lmjh&l5h^djz3vsv+');
+define('SECURE_AUTH_KEY',  '34zxvrkfm8hfzajbo9h33rfhxj5!uhxy72e*hm+g&kq1xjw5sxjjk');
+define('LOGGED_IN_KEY',    'kdt)hr_wqsc+bcntxtjtvz5(1fjf14t0!6b+g3pnm@qud*++g6sbw');
+define('NONCE_KEY',        'd-vo5p-4j#!7jw*b+bxby15*5g8=rxz+mbgs9w9d37jjjeiw6ys1-');
+define('AUTH_SALT',        'a+dnrsw@ow5#^8jx+a-76gr+=3nnyhz02_dff2v-8%4dhk6h8eq5fp');
+define('SECURE_AUTH_SALT', '9o2^rw@j-8v$mt+bpjz@3p2s^t3jk&-&h+nfi9llwd#q%=kzgbg1b');
+```
+
+### 6. **Désactivation de l'édition de fichiers via le backoffice**
+
+L'édition de fichiers via le tableau de bord de WordPress est une fonctionnalité pratique, mais elle peut également être exploitée par des attaquants qui parviennent à accéder à l'administration. Par mesure de sécurité, cette fonctionnalité a été désactivée dans **`wp-config.php`** :
+
+```php
+define('DISALLOW_FILE_EDIT', true);
+```
+
+Cela empêche les utilisateurs ayant accès au backoffice de modifier les fichiers de WordPress directement depuis l'interface.
+
+### 7. **Mise à jour automatique du cœur, des plugins et des thèmes**
+
+Les mises à jour régulières de WordPress, des plugins et des thèmes sont cruciales pour corriger les vulnérabilités de sécurité. Pour assurer la mise à jour automatique des composants critiques, la ligne suivante a été ajoutée dans **`wp-config.php`** :
+
+```php
+define('WP_AUTO_UPDATE_CORE', true);
+```
+
+Cela permet de mettre à jour automatiquement le cœur de WordPress, tandis que les plugins et les thèmes sont également mis à jour via l'interface d'administration ou un plugin de gestion des mises à jour.
+
+### 8. **Éviter l’utilisation de plugins obsolètes/non maintenus**
+
+Pour minimiser le risque d’exploitation de vulnérabilités connues, il est essentiel d’éviter l’utilisation de plugins obsolètes ou non maintenus. Chaque plugin utilisé a été vérifié dans le répertoire officiel de WordPress pour s'assurer qu'il est régulièrement mis à jour et qu'il a des évaluations positives. Les plugins obsolètes ont été désinstallés et remplacés par des alternatives sécurisées.
