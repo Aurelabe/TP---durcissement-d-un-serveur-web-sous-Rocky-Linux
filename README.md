@@ -1,5 +1,7 @@
 # Rapport de durcissement d’un serveur web sous Rocky Linux 9
 
+# I. Objectifs du TP
+
 ## 1. Objectif
 
 Le but est de durcir la configuration d'un système, d'un serveur web, d'une base de données, et d'un CMS, à partir des recommandations des benchmarks CIS et des guides de sécurité des éditeurs.
