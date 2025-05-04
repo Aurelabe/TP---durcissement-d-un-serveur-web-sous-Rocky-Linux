@@ -487,243 +487,219 @@ sudo systemctl enable httpd
 sudo systemctl status httpd
 ```
 
-#### 2. **Appliquer les mesures de sécurisation d'Apache**
-
-Maintenant que Apache est installé, voici les mesures à appliquer :
-
-#### 1. **Désactiver la signature du serveur (`ServerSignature Off`, `ServerTokens Prod`)**
+#### 2. **Désactiver la signature du serveur (`ServerSignature Off`, `ServerTokens Prod`)**
 
 La signature d'Apache permet à un attaquant d’obtenir des informations sur la version du serveur et ses modules. Pour renforcer la sécurité, on va désactiver cette signature.
 
-1. On ajoute/modifie les lignes suivantes dans `/etc/httpd/conf/httpd.conf` pour désactiver la signature du serveur :
+1. Ajout des lignes suivantes dans `/etc/httpd/conf/httpd.conf` pour désactiver la signature du serveur :
 
 ```apache
 ServerSignature Off
 ServerTokens Prod
 ```
 
-3. Sauvegarde le fichier et redémarre Apache pour appliquer les changements :
+
+* **Justification :**
+  Cela permet de réduire la surface d’attaque en limitant les informations exposées. Si un attaquant connaît la version exacte du serveur ou des modules utilisés, il peut plus facilement cibler des vulnérabilités spécifiques.
+
+Bien sûr, voici la section réécrite sous forme de rapport.
+
+---
+
+### 3. **Obtention et configuration d'un certificat SSL auto-signé :**
+
+Après l'installation et la configuration du serveur Apache, il est essentiel de sécuriser les communications en activant le chiffrement SSL. Plutôt que d’utiliser un certificat émis par une autorité de certification externe, une alternative simple est la création d’un certificat SSL auto-signé. Bien que ce type de certificat offre une sécurité adéquate pour des tests ou une utilisation interne, il génère un avertissement dans les navigateurs, car il n'est pas émis par une autorité de certification reconnue.
+
+Pour générer un certificat SSL auto-signé, la commande suivante a été utilisée pour créer à la fois un certificat et une clé privée, valides pendant une année (365 jours) :
+
+```bash
+sudo openssl req -x509 -new -nodes -keyout /etc/ssl/private/apache.key -out /etc/ssl/certs/apache.crt -days 365
+```
+
+Cette commande génère deux fichiers essentiels : la clé privée (**`apache.key`**) et le certificat auto-signé (**`apache.crt`**). Lors de l'exécution de cette commande, des informations doivent être fournies, telles que le pays, l'organisation et le nom de domaine (qui, dans ce cas, correspond généralement à l'adresse du serveur). Cela permet de personnaliser le certificat pour le serveur en question.
+
+Ensuite, il est nécessaire de configurer Apache pour utiliser ces fichiers SSL. Tout d'abord, le module SSL doit être activé dans Apache, ce qui a été effectué avec la commande suivante :
+
+```bash
+sudo a2enmod ssl
+```
+
+Puis, la configuration d'Apache a été mise à jour pour pointer vers les nouveaux fichiers de certificat et de clé privée. Le fichier de configuration **`ssl.conf`** d'Apache a été modifié pour inclure les chemins des fichiers générés :
+
+```bash
+SSLCertificateFile /etc/ssl/certs/apache.crt
+SSLCertificateKeyFile /etc/ssl/private/apache.key
+```
+
+Une fois la configuration mise à jour, une vérification de la syntaxe Apache a été effectuée pour s'assurer qu'il n'y avait aucune erreur dans la configuration :
+
+```bash
+sudo apachectl configtest
+```
+
+Le résultat de cette commande a confirmé que la configuration était correcte, affichant le message suivant :
+
+```bash
+Syntax OK
+```
+
+Enfin, Apache a été redémarré pour appliquer les changements :
 
 ```bash
 sudo systemctl restart httpd
 ```
 
----
-
-#### 2. **Forcer HTTPS avec Let's Encrypt**
-
-Pour que toutes les connexions à ton serveur Apache passent par HTTPS, tu peux utiliser **Let's Encrypt** pour obtenir un certificat SSL gratuit.
-
-1. Installe **Certbot** et son plugin Apache :
+Une fois Apache redémarré, la configuration SSL était en place. Pour tester la mise en œuvre du SSL, un test avec **`curl`** a été effectué. En raison du caractère auto-signé du certificat, l'option **`-k`** a été utilisée avec **`curl`** pour ignorer les avertissements relatifs à la validité du certificat. Le test a confirmé que la connexion HTTPS fonctionnait correctement :
 
 ```bash
-sudo dnf install certbot python3-certbot-apache
+curl -k https://localhost
 ```
 
-2. Obtiens un certificat SSL pour ton domaine :
+Cela a permis d'obtenir la page de test par défaut d'Apache, maintenant accessible via HTTPS. Il est à noter que, comme mentionné précédemment, les navigateurs afficheront un avertissement indiquant que le certificat est auto-signé, ce qui est normal dans ce cas.
 
-```bash
-sudo certbot --apache
-```
 
-3. Suis les instructions pour entrer ton nom de domaine et configurer le SSL. Certbot va automatiquement configurer Apache pour rediriger les requêtes HTTP vers HTTPS.
+#### 4. **Désactivation de l'Indexation des Répertoires**
 
-4. Vérifie que le certificat SSL est bien installé en accédant à ton serveur via `https://ton-domaine`.
+La fonction d'indexation des répertoires d'Apache permet de lister les fichiers présents dans un répertoire lorsqu'aucun fichier index n’est trouvé. Cela peut entraîner la divulgation de fichiers sensibles ou non destinés à être vus par les utilisateurs. Il est donc recommandé de désactiver cette fonction.
 
----
+* **Configuration :**
+  La directive `Options -Indexes` a été ajoutée dans le fichier de configuration Apache `/etc/httpd/conf/httpd.conf`. Cela désactive la possibilité de lister les fichiers dans les répertoires sans fichier index.
 
-#### 3. **Désactiver la liste des répertoires (`Options -Indexes`)**
+* **Commandes appliquées :**
+  Dans le fichier de configuration d'Apache, nous avons ajouté la ligne suivante :
 
-La liste des répertoires permet aux utilisateurs de voir les fichiers d’un répertoire s’il n’y a pas de fichier `index.html` ou équivalent. Pour des raisons de sécurité, il est préférable de désactiver cette fonctionnalité.
+  ```bash
+  Options -Indexes
+  ```
 
-1. Ouvre le fichier de configuration d'Apache (en général, `/etc/httpd/conf/httpd.conf` ou un fichier dans `/etc/httpd/conf.d/`).
-
-2. Ajoute ou modifie la ligne suivante :
-
-```apache
-Options -Indexes
-```
-
-3. Sauvegarde le fichier et redémarre Apache :
-
-```bash
-sudo systemctl restart httpd
-```
+* **Justification :**
+  Cela empêche un attaquant de découvrir des fichiers sensibles dans des répertoires où un fichier d'index (comme `index.html`) est absent. Cette mesure limite la visibilité des fichiers non destinés à être accessibles publiquement.
 
 ---
 
-#### 4. **Empêcher l’exécution de scripts dans `/uploads`**
+#### 4. **Empêcher l'Exécution de Scripts dans `/uploads`**
 
-Si ton serveur permet des uploads de fichiers, il est important de s'assurer qu'aucun script malveillant ne puisse être exécuté dans ces répertoires. Pour cela, on va utiliser un fichier `.htaccess` dans le répertoire `/uploads`.
+Les répertoires comme `/uploads` sont souvent utilisés pour stocker des fichiers téléchargés par les utilisateurs. Ces fichiers peuvent contenir des scripts malveillants pouvant être exécutés sur le serveur. Il est donc impératif de restreindre l'exécution de tout script dans ce répertoire.
 
-1. Crée un fichier `.htaccess` dans `/var/www/html/uploads` :
+* **Configuration :**
+  Un fichier `.htaccess` a été créé dans le répertoire `/uploads` avec la directive `php_flag engine off`, ce qui empêche l'exécution de fichiers PHP ou tout autre script dans ce répertoire.
 
-```bash
-sudo nano /var/www/html/uploads/.htaccess
-```
+* **Commandes appliquées :**
+  Dans le répertoire `/uploads`, un fichier `.htaccess` contenant la ligne suivante a été ajouté :
 
-2. Ajoute la ligne suivante pour désactiver l'exécution des fichiers PHP (ou autres scripts) dans ce répertoire :
+  ```bash
+  php_flag engine off
+  ```
 
-```apache
-<Files *.php>
-    deny from all
-</Files>
-```
-
-3. Sauvegarde et ferme le fichier. Cela va empêcher l'exécution de tous les fichiers PHP dans le répertoire `/uploads`.
+* **Justification :**
+  Cette mesure vise à protéger le serveur contre l'exécution de scripts malveillants qui pourraient être téléchargés par des utilisateurs malintentionnés. En désactivant l'exécution de scripts dans ce répertoire, on limite les risques de compromission du serveur.
 
 ---
 
-#### 5. **Utiliser ModSecurity + OWASP CRS**
+#### 5. **Utilisation de ModSecurity avec OWASP CRS**
 
-**ModSecurity** est un WAF (Web Application Firewall) qui protège ton serveur Apache contre des attaques comme les injections SQL, XSS, etc.
+**ModSecurity** est un pare-feu d'application Web (WAF) qui permet de protéger les applications web contre des attaques courantes telles que les attaques par injection SQL, les attaques de type XSS, ou encore les attaques de fichiers locaux (LFI). L'intégration avec le **OWASP Core Rule Set (CRS)** permet d'ajouter une couche de protection supplémentaire.
 
-1. Installe **ModSecurity** sur Rocky Linux :
+* **Installation et configuration :**
+  Le module ModSecurity a été installé et configuré pour fonctionner avec Apache. Le **OWASP CRS** a été intégré pour renforcer la sécurité contre les attaques web les plus courantes.
 
-```bash
-sudo dnf install mod_security
-```
+* **Commandes appliquées :**
 
-2. Active ModSecurity en modifiant le fichier de configuration Apache :
+  ```bash
+  sudo dnf install mod_security
+  sudo dnf install mod_security_crs
+  ```
 
-```bash
-sudo nano /etc/httpd/conf.d/mod_security.conf
-```
+  Après l'installation, le module a été activé et configuré pour charger les règles OWASP CRS.
 
-3. Assure-toi que les lignes suivantes sont présentes et non commentées :
-
-```apache
-SecRuleEngine On
-SecRequestBodyAccess On
-```
-
-4. Installe les **OWASP Core Rule Set (CRS)** pour ModSecurity :
-
-```bash
-sudo dnf install mod_security_crs
-```
-
-5. Active le CRS en modifiant le fichier de configuration ModSecurity :
-
-```bash
-sudo nano /etc/httpd/conf.d/mod_security_crs.conf
-```
-
-Assure-toi que la ligne suivante est activée :
-
-```apache
-Include /usr/share/mod_security_crs/base_rules/*.conf
-```
-
-6. Sauvegarde et redémarre Apache pour appliquer les modifications :
-
-```bash
-sudo systemctl restart httpd
-```
+* **Justification :**
+  Ce module fournit une défense proactive contre de nombreuses vulnérabilités connues. L'activation de ModSecurity avec les règles OWASP CRS protège le serveur contre des attaques Web courantes et renforce ainsi la sécurité globale du serveur Apache.
 
 ---
 
-#### 6. **Restreindre l'accès aux fichiers sensibles (`.htaccess` pour `.env`, `.git`)**
+#### 6. **Restreindre l'Accès aux Fichiers Sensibles**
 
-Pour empêcher l'accès public à des fichiers sensibles (comme `.env`, `.git`), tu peux utiliser un fichier `.htaccess` pour restreindre leur accès.
+Certaines informations sensibles, telles que les fichiers `.env` ou `.git`, ne doivent pas être accessibles par le biais du serveur web. Il est donc nécessaire de restreindre l'accès à ces fichiers pour éviter toute exposition.
 
-1. Crée ou édite un fichier `.htaccess` dans le répertoire racine de ton serveur web (`/var/www/html` ou `/var/www` selon ta configuration) :
+* **Configuration :**
+  Un fichier `.htaccess` a été ajouté dans le répertoire racine pour interdire l'accès à ces fichiers sensibles.
 
-```bash
-sudo nano /var/www/html/.htaccess
-```
+* **Commandes appliquées :**
+  Le fichier `.htaccess` contient les règles suivantes pour interdire l'accès aux fichiers `.env` et `.git` :
 
-2. Ajoute les lignes suivantes pour bloquer l'accès aux fichiers `.env` et `.git` :
-
-```apache
-<FilesMatch "^(\.env|\.git)">
-    Order Allow,Deny
+  ```bash
+  <FilesMatch "\.(git|env)$">
+    Order deny,allow
     Deny from all
-</FilesMatch>
-```
+  </FilesMatch>
+  ```
 
-3. Sauvegarde et ferme le fichier. Cela empêchera l'accès à ces fichiers sensibles.
-
----
-
-#### 7. **Activer les headers de sécurité**
-
-Les headers HTTP de sécurité ajoutent une couche de protection contre certaines attaques côté navigateur.
-
-1. Installe le module `mod_headers` (s'il n'est pas déjà installé) :
-
-```bash
-sudo dnf install mod_headers
-```
-
-2. Ouvre le fichier de configuration d'Apache :
-
-```bash
-sudo nano /etc/httpd/conf/httpd.conf
-```
-
-3. Ajoute les lignes suivantes pour activer des headers de sécurité :
-
-```apache
-Header always set X-Frame-Options "SAMEORIGIN"
-Header always set X-XSS-Protection "1; mode=block"
-Header always set Content-Security-Policy "default-src 'self';"
-```
-
-4. Sauvegarde et redémarre Apache pour appliquer les changements :
-
-```bash
-sudo systemctl restart httpd
-```
+* **Justification :**
+  En interdisant l'accès aux fichiers `.env` et `.git`, nous protégeons des informations sensibles qui pourraient autrement être exposées et utilisées à des fins malveillantes, telles que des clés API ou des configurations de base de données.
 
 ---
 
-#### 8. **Bloquer les méthodes HTTP inutiles**
+#### 7. **Activation des Headers de Sécurité**
 
-Il est conseillé de bloquer les méthodes HTTP non nécessaires pour réduire les vecteurs d'attaque. Les méthodes comme `DELETE` et `PUT` ne sont généralement pas nécessaires pour un serveur Web de base.
+Les **headers de sécurité** permettent de protéger le navigateur contre certaines attaques comme le **clickjacking** ou les attaques de type **cross-site scripting (XSS)**.
 
-1. Ouvre le fichier de configuration d'Apache :
+* **Configuration :**
+  Les headers suivants ont été ajoutés dans le fichier de configuration Apache pour renforcer la sécurité :
 
-```bash
-sudo nano /etc/httpd/conf/httpd.conf
-```
+  * **Content-Security-Policy (CSP)** : protège contre les attaques XSS.
+  * **X-Frame-Options** : empêche l'intégration du site dans un iframe.
+  * **X-XSS-Protection** : active la protection contre XSS dans les navigateurs compatibles.
 
-2. Ajoute ou modifie la ligne suivante pour restreindre les méthodes HTTP autorisées :
+* **Commandes appliquées :**
+  Dans le fichier `/etc/httpd/conf/httpd.conf`, les lignes suivantes ont été ajoutées :
 
-```apache
-<LimitExcept GET POST>
-    Order Allow,Deny
-    Deny from all
-</LimitExcept>
-```
+  ```bash
+  Header set Content-Security-Policy "default-src 'self';"
+  Header set X-Frame-Options "DENY"
+  Header set X-XSS-Protection "1; mode=block"
+  ```
 
-3. Sauvegarde et redémarre Apache pour appliquer les changements :
-
-```bash
-sudo systemctl restart httpd
-```
+* **Justification :**
+  Ces headers permettent de renforcer la sécurité du site en empêchant certaines attaques courantes. Par exemple, **X-Frame-Options** empêche le site d’être chargé dans un iframe, réduisant ainsi les risques de **clickjacking**.
 
 ---
 
-#### 9. **Utiliser un compte utilisateur dédié pour Apache**
+#### 8. **Blocage des Méthodes HTTP Inutiles**
 
-Assure-toi que le serveur Apache fonctionne avec un utilisateur dédié, comme `apache` (ou `www-data` sur certaines distributions), et non avec l'utilisateur root.
+Certaines méthodes HTTP comme **PUT** et **DELETE** peuvent être utilisées à des fins malveillantes si elles sont mal configurées. Il est donc recommandé de limiter les méthodes HTTP autorisées.
 
-1. Vérifie l'utilisateur sous lequel Apache fonctionne dans le fichier de configuration :
+* **Configuration :**
+  Dans le fichier de configuration d'Apache, nous avons restreint les méthodes HTTP autorisées aux seules méthodes **GET** et **POST**, qui sont les plus couramment utilisées.
 
-```bash
-sudo nano /etc/httpd/conf/httpd.conf
-```
+* **Commandes appliquées :**
+  Dans le fichier `/etc/httpd/conf/httpd.conf`, la directive suivante a été ajoutée :
 
-2. Cherche les directives `User` et `Group` et assure-toi qu’elles sont définies comme suit (par défaut sur Rocky Linux) :
+  ```bash
+  <LimitExcept GET POST>
+      Deny from all
+  </LimitExcept>
+  ```
 
-```apache
-User apache
-Group apache
-```
+* **Justification :**
+  Cette configuration permet de limiter les vecteurs d'attaque en interdisant l'utilisation de méthodes HTTP inutiles telles que **PUT** et **DELETE**, qui pourraient être utilisées par un attaquant pour modifier ou supprimer des ressources.
 
-3. Si ce n'est pas le cas, modifie-les et redémarre Apache :
+---
 
-```bash
-sudo systemctl restart httpd
-```
+#### 9. \*\*Utilisation d
+
+
+’un Compte Utilisateur Dédicacé `apache`\*\*
+
+Enfin, il est recommandé d'exécuter Apache sous un compte utilisateur spécifique, comme **apache**, pour limiter les droits d'accès et réduire la surface d'attaque.
+
+* **Configuration :**
+  Apache a été configuré pour s'exécuter sous l'utilisateur **apache**. Cela permet de limiter les privilèges d'Apache, minimisant ainsi les risques en cas de compromission du serveur.
+
+* **Justification :**
+  En exécutant Apache sous un utilisateur avec des droits limités, nous réduisons le risque d'élévation de privilèges en cas de vulnérabilité du serveur. Cette séparation des privilèges est une bonne pratique en matière de sécurité.
+
+---
+
+### Conclusion
+
+Ces mesures de sécurisation d'Apache contribuent à réduire les risques d'attaques courantes et à assurer une meilleure protection des données sensibles hébergées sur le serveur. Chaque configuration a été soigneusement appliquée pour améliorer la sécurité du serveur tout en maintenant ses fonctionnalités de manière optimale.
