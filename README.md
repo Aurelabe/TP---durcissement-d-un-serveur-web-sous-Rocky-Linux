@@ -330,43 +330,83 @@ sudo systemctl enable --now dnf-automatic.timer
 
 **Justification** : Réduit les fenêtres de vulnérabilité entre la publication d’un patch et son application.
 
-### 8. Isoler `/var/www` dans un volume logique séparé
+### 8. Isolement de `/var/www` dans un volume logique séparé
 
-**Objectif** : Séparer les données web du reste du système avec des options de montage restrictives.
+**Objectif** : Séparer l’espace web du reste du système pour réduire les risques de compromission en cas d’upload de fichiers malveillants.
 
-**Actions** :
+**Procédure** :
 
-```bash
-sudo mkfs.ext4 /dev/mapper/vg0-www
-sudo mkdir /var/www
-sudo mount -o nodev,noexec,nosuid /dev/mapper/vg0-www /var/www
-echo '/dev/mapper/vg0-www /var/www ext4 defaults,nodev,noexec,nosuid 0 2' | sudo tee -a /etc/fstab
-```
+* Un volume logique nommé `var_www` a été créé dans le groupe de volumes `rl_vbox` lors de l'installation du système.
 
-**Justification** : Empêche un attaquant d’exécuter du code malveillant uploadé dans `/var/www`.
+* Le système de fichiers a été formaté en `ext4` :
 
----
+  ```bash
+  sudo mkfs.ext4 /dev/rl_vbox/var_www
+  ```
 
-### 9. Isoler `/tmp` dans un volume séparé
+* Le point de montage `/var/www` a été préparé puis monté avec des options restrictives :
 
-Même logique que pour `/var/www` :
+  ```bash
+  sudo mkdir -p /var/www
+  sudo mount -o nodev,noexec,nosuid /dev/rl_vbox/var_www /var/www
+  ```
 
-**Actions** :
+* L’entrée suivante a été ajoutée à `/etc/fstab` pour assurer la persistance au démarrage :
 
-```bash
-sudo mkfs.ext4 /dev/mapper/vg0-tmp
-sudo mkdir /mnt/tmp
-sudo mount -o nodev,noexec,nosuid /dev/mapper/vg0-tmp /mnt/tmp
-sudo mv /tmp /tmp.bak
-sudo mkdir /tmp
-sudo mount --move /mnt/tmp /tmp
-sudo chmod 1777 /tmp
-echo '/dev/mapper/vg0-tmp /tmp ext4 defaults,nodev,noexec,nosuid 0 2' | sudo tee -a /etc/fstab
-```
+  ```bash
+  /dev/rl_vbox/var_www /var/www ext4 defaults,nodev,noexec,nosuid 0 2
+  ```
 
-**Justification** : `/tmp` est une zone utilisée par tous les utilisateurs : des options restrictives y sont impératives.
+**Vérification**
 
----
+![Capture d'écran 2025-05-04 212443](https://github.com/user-attachments/assets/52b57c18-2a20-487b-b111-ccf5de99f335)
+
+
+**Justification** :
+
+L’isolement de `/var/www` empêche :
+
+* l’exécution directe de fichiers binaires (`noexec`)
+* l’utilisation de fichiers comme périphériques (`nodev`)
+* l'escalade de privilèges via des fichiers avec bit `setuid` ou `setgid` (`nosuid`)
+
+Cela protège le serveur web contre les attaques par upload de fichiers exécutables.
+
+### 9. Isolement de `/tmp` dans un volume logique séparé
+
+**Objectif** : Sécuriser l’espace temporaire accessible à tous les utilisateurs, souvent ciblé par les attaquants pour y exécuter des scripts malveillants.
+
+**Procédure** :
+
+* Un volume logique `tmp` a été alloué dans `rl_vbox` au moment de l’installation.
+
+* Il a été formaté en `xfs`, puis monté temporairement :
+
+  ```bash
+  sudo mkfs.xfs /dev/rl_vbox/tmp
+  sudo mkdir -p /mnt/tmp
+  sudo mount -o nodev,noexec,nosuid /dev/rl_vbox/tmp /mnt/tmp
+  ```
+
+* L'ancien `/tmp` a été déplacé, puis le nouveau volume monté en position définitive :
+
+  ```bash
+  sudo mv /tmp /tmp.bak
+  sudo mkdir /tmp
+  sudo mount --move /mnt/tmp /tmp
+  sudo chmod 1777 /tmp
+  ```
+
+* Ajout à `/etc/fstab` :
+
+  ```bash
+  /dev/rl_vbox/tmp /tmp xfs defaults,nodev,noexec,nosuid 0 2
+  ```
+
+**Justification** :
+
+* `/tmp` étant accessible par tous les utilisateurs, il est essentiel de restreindre toute exécution de fichiers.
+* Les options de montage permettent de limiter les possibilités d’attaques via des scripts ou binaires malicieux.
 
 ### 10. Vérification des permissions critiques
 
