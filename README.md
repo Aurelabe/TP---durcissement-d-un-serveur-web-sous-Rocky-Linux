@@ -259,3 +259,74 @@ Le but est de durcir la configuration d'un système, d'un serveur web, d'une bas
 
 **Justification** : La désactivation de l'accès root et de l'authentification par mot de passe renforce la sécurité SSH. L'installation de `fail2ban` permet de bloquer les adresses IP effectuant des tentatives de connexion répétées, réduisant ainsi le risque d'attaques par force brute.
 
+
+Parfait. Poursuivons maintenant avec la mise en œuvre des autres mesures de durcissement du système d’exploitation listées dans ton rappel. Je vais t’expliquer chaque action étape par étape pour que tu puisses à la fois l’appliquer et la documenter ensuite dans ton rapport GitHub.
+
+### 4. Activation de `auditd`
+
+**Objectif** : Mettre en place un système d’audit pour tracer toutes les actions sensibles sur le système.
+
+**Actions** :
+
+```bash
+sudo dnf install audit
+sudo systemctl enable --now auditd
+```
+
+**Vérification** :
+
+```bash
+sudo auditctl -s
+```
+
+![Capture d'écran 2025-05-04 180837](https://github.com/user-attachments/assets/210ceeaf-5196-4138-8a05-bb2690f665ca)
+
+
+**Justification** : Permet la traçabilité des actions utilisateurs, modifications de fichiers critiques, escalades de privilèges, etc.
+
+### 5. Suppression des paquets inutiles
+
+**Objectif** : Réduire la surface d’attaque en supprimant les logiciels non nécessaires.
+
+**Procédure** :
+
+**Supprimer les paquets inutiles** :
+
+   ```bash
+   sudo dnf autoremove
+   ```
+
+   Cette commande supprime les paquets installés automatiquement qui ne sont plus requis par d'autres paquets. Il est recommandé de vérifier la liste des paquets proposés à la suppression avant de confirmer, car `dnf autoremove` peut parfois proposer de supprimer des paquets que vous souhaitez conserver.
+
+**Justification** : La suppression des paquets non requis libère des ressources et réduit les vecteurs d’attaque potentiels, surtout si des services inutiles sont exposés et/ou mal configurés.
+
+### 6. Activer SELinux en mode `enforcing`
+
+**Objectif** : Appliquer un contrôle d’accès obligatoire (MAC) plus strict que les permissions UNIX classiques.
+
+**Vérification actuelle** :
+
+```bash
+getenforce
+```
+
+![Capture d'écran 2025-05-04 182641](https://github.com/user-attachments/assets/5fcc91fa-7db4-4004-9e8a-f557347a673c)
+
+
+SELinux est déjà en mode `Enforcing`
+
+**Justification** : SELinux limite les actions que les processus peuvent effectuer, même en cas de compromission.
+
+### 7. Activer les mises à jour automatiques
+
+**Objectif** : Garder le système à jour pour limiter les vulnérabilités non corrigées.
+
+**Installation et configuration** :
+
+```bash
+sudo dnf install dnf-automatic
+sudo systemctl enable --now dnf-automatic.timer
+```
+
+**Justification** : Réduit les fenêtres de vulnérabilité entre la publication d’un patch et son application.
+
